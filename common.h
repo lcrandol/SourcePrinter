@@ -61,8 +61,8 @@ LiteralType;
 typedef struct
 {
     //Missing code goes here
-    char* token_string;
-    int tokenType;
+    LiteralType literal_type;
+    TokenCode token_code;
     struct Token *nextToken;
 }
 Token;
