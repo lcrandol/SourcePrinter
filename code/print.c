@@ -8,6 +8,9 @@
 
 #include "print.h"
 
+/****************************
+Symbol Strings
+****************************/
 const char* const SYMBOL_STRINGS[] =
 {
     "<no token>", "<IDENTIFIER>", "<NUMBER>", "<STRING>",
@@ -23,11 +26,13 @@ const char* const SYMBOL_STRINGS[] =
 
 static void print_page_header(char source_name[], char date[]);
 
+static int line_count = MAX_LINES_PER_PAGE;
+
 void print_line(char line[], char source_name_to_print[], char date_to_print[])
 {
     char save_ch;
     char *save_chp = NULL;
-    static int line_count = MAX_LINES_PER_PAGE;
+
 
     if (++line_count > MAX_LINES_PER_PAGE)
     {
@@ -43,7 +48,7 @@ void print_line(char line[], char source_name_to_print[], char date_to_print[])
         save_ch = *save_chp;
         *save_chp = '\0';
     }
-    printf("%s", line);
+    printf("%s\n", line);
     if (save_chp)
     {
         *save_chp = save_ch;
@@ -56,8 +61,13 @@ static void print_page_header(char source_name[], char date[])
     putchar(FORM_FEED_CHAR);
     printf("Page    %d  %s  %s\n\n", ++page_number, source_name, date);
 }
-void print_token(Token *token)
+void print_token(Token *token,char source_name_to_print[], char date_to_print[])
 {
     //Missing code goes here
-    printf("     >> %s      %s\n",SYMBOL_STRINGS[token->token_code],token->literal_value);
+    printf("     >> %-13s      %s\n",SYMBOL_STRINGS[token->token_code],token->literal_value);
+    if (line_count++ > MAX_LINES_PER_PAGE)
+    {
+        print_page_header(source_name_to_print, date_to_print);
+        line_count = 1;
+    }
 }

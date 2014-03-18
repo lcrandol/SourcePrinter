@@ -28,7 +28,7 @@ int main(int argc, const char * argv[])
     {
         token = get_token();
         add_token_to_list(token_list, token);
-        print_token(token);
+        print_token(token,source_name,date);
     }
     while (token->token_code != 18);//What is the sentinel value that ends this loop?
 
@@ -56,7 +56,6 @@ void quit_scanner(FILE *src_file, Token *list)
     {
         quit_scanner(src_file,list->nextToken);
     }
-    puts("HERE!!!!!!!");
     //write code to free all of the memory for the token list
 
     fclose(src_file);

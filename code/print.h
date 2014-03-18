@@ -12,6 +12,6 @@
 #include "common.h"
 
 void print_line(char line[], char source_name_to_print[], char date_to_print[]);
-void print_token(Token *token);
+void print_token(Token *token,char source_name_to_print[], char date_to_print[]);
 
 #endif

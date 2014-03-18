@@ -22,7 +22,7 @@ static char* get_number(Token* theToken, char token_string[MAX_TOKEN_STRING_LENG
 static char* get_string(Token* theToken, char token_string[MAX_TOKEN_STRING_LENGTH],char *token_ptr);
 static char* get_special(Token* theToken, char token_string[MAX_TOKEN_STRING_LENGTH],char *token_ptr);
 static char* downshift_word(char wordToLower[]);
-static BOOLEAN is_reserved_word(char* wordToCheck);
+static BOOLEAN is_reserved_word(Token *theToken);
 
 typedef enum
 {
@@ -57,6 +57,22 @@ const RwStruct rw_table[9][10] = {
     {{"procedure", PROCEDURE},{NULL,0}}  // Reserved words of size 9
 };
 
+/****************************
+Symbol Strings 1
+****************************/
+const char* const SYMBOL_STRINGS1[] =
+{
+    "<no token>", "<IDENTIFIER>", "<NUMBER>", "<STRING>",
+    "^","*","(",")","-","+","=","[","]",":",";",
+    "<",">",",",".","/",":=","<=",">=","<>","..",
+    "<END OF FILE>", "<ERROR>",
+    "AND","ARRAY","BEGIN","CASE","CONST","DIV","DO","DOWNTO",
+    "ELSE","END","FILE","FOR","FUNCTION","GOTO","IF","IN",
+    "LABEL","MOD","NIL","NOT","OF","OR","PACKED","PROCEDURE",
+    "PROGRAM","RECORD","REPEAT","SET","THEN","TO","TYPE","UNTIL",
+    "VAR","WHILE","WITH",
+};
+
 void init_scanner(FILE *source_file, char source_name[], char date[])
 {
     src_file = source_file;
@@ -73,19 +89,19 @@ void init_scanner(FILE *source_file, char source_name[], char date[])
      {
          if((x > 64 && x < 91 )||(x > 96 && x < 123))
          {
-             char_table[x] = 0;
+             char_table[x] = LETTER;
          }else if(x > 47 && x < 58)
          {
-             char_table[x] = 1;
+             char_table[x] = DIGIT;
          }else if(x == 34 || x == 39)
          {
-             char_table[x] = 2;
+             char_table[x] = QUOTE;
          }else if(x == 46)
          {
-             char_table[x] = 4;
+             char_table[x] = END_OF_FILE;
          }else
          {
-             char_table[x] = 3;
+             char_table[x] = SPECIAL;
          }
      }
 
@@ -119,7 +135,6 @@ Token* get_token()
     Token *theToken = (struct Token*)malloc(sizeof(Token));//I am missing the most important variable in the function, what is it?  Hint: what should I return?
     static char *token_ptr;
     token_ptr = get_char(source_buffer,token_ptr);
-
     switch(char_table[*(token_ptr)])
     {
     case LETTER:
@@ -127,15 +142,11 @@ Token* get_token()
         break;
 
     case DIGIT:
-        theToken->token_code = PERIOD;
-        theToken->literal_value = ".";
-        theToken->nextToken = NULL;
+        token_ptr = get_number(theToken,token_string,token_ptr);
         break;
 
     case QUOTE:
-        theToken->token_code = PERIOD;
-        theToken->literal_value = ".";
-        theToken->nextToken = NULL;
+        token_ptr = get_string(theToken,token_string,token_ptr);
         break;
 
     case SPECIAL:
@@ -163,7 +174,6 @@ static char* get_char(char source_buffer[MAX_TOKEN_STRING_LENGTH], char *token_p
 {
     if(source_buffer[0] == NULL)
     {
-        puts("HERE1");
         if(!get_source_line(source_buffer))
         {
             return '.';
@@ -172,26 +182,35 @@ static char* get_char(char source_buffer[MAX_TOKEN_STRING_LENGTH], char *token_p
     }
     if((*(token_ptr)) == 10)
     {
-        puts("HERE2");
         if(!get_source_line(source_buffer))
         {
             return '.';
         }
         token_ptr = source_buffer;
+        if(*(token_ptr) == '\n')
+        {
+            token_ptr = get_char(source_buffer,token_ptr);
+        }
     }
     if((*(token_ptr)) == 46)
     {
-        puts("HERE3");
-        return '.';
+        *token_ptr = '.';
+        return token_ptr;
     }
     if((*(token_ptr)) == 123)
     {
-        puts("HERE4");
         token_ptr = skip_comment(token_ptr);
+    }
+    if(*token_ptr == 9) // Horizontal Tabs are a pain in my rump!!!
+    {
+        token_ptr++;
+        if(*(token_ptr) == 9) //Recursively make them go away.
+        {
+            token_ptr = get_char(source_buffer,token_ptr);
+        }
     }
     if((*(token_ptr)) == 32)
     {
-        puts("HERE5");
         token_ptr = skip_blanks(token_ptr); //1.  Skip past all of the blanks
     }
     /*
@@ -245,17 +264,22 @@ static char* get_word(Token* theToken, char token_string[MAX_TOKEN_STRING_LENGTH
         token_ptr++;
      }
 
-    token_string = downshift_word(token_string); //Downshift the word, to make it lower case
-
-    theToken->literal_value = token_string;
-    theToken->literal_type = STRING_LIT;
-    theToken->token_code = IDENTIFIER;
-    theToken->nextToken = NULL;
+    theToken->literal_value = downshift_word(token_string); //Downshift the word, to make it lower case
 
     /*
      Write some code to Check if the word is a reserved word.
      if it is not a reserved word its an identifier.
      */
+     if(is_reserved_word(theToken))
+     {
+         theToken->literal_type = STRING_LIT;
+     }else
+     {
+         theToken->literal_type = STRING_LIT;
+         theToken->token_code = IDENTIFIER;
+         theToken->nextToken = NULL;
+     }
+
 
 
      return token_ptr;
@@ -266,6 +290,32 @@ static char* get_number(Token* theToken, char token_string[MAX_TOKEN_STRING_LENG
     /*
      Write some code to Extract the number and convert it to a literal number.
      */
+     int charCount = 0;
+     int realCount = 0;
+     while((*(token_ptr) == 'e' || *(token_ptr) == '-' || *(token_ptr) == '.' || char_table[(*(token_ptr))] == DIGIT) && charCount < (MAX_TOKEN_STRING_LENGTH-1))
+     {
+        token_string[charCount] = *(token_ptr);
+        token_string[charCount+1] = '\0';
+        if((*(token_ptr) == 'e' || *(token_ptr) == '.'))
+        {
+            realCount++;
+        }
+        charCount++;
+        token_ptr++;
+     }
+
+     if(realCount > 0)
+     {
+         theToken->literal_type = REAL_LIT;
+     }else
+     {
+         theToken->literal_type = INTEGER_LIT;
+     }
+     theToken->literal_value = token_string;
+     theToken->token_code = NUMBER;
+     theToken->nextToken = NULL;
+
+     return token_ptr;
 }
 
 static char* get_string(Token* theToken, char token_string[MAX_TOKEN_STRING_LENGTH],char *token_ptr)
@@ -273,6 +323,22 @@ static char* get_string(Token* theToken, char token_string[MAX_TOKEN_STRING_LENG
     /*
      Write some code to Extract the string
      */
+     int charCount = 0;
+     token_ptr++;
+     while(*(token_ptr) != 39 && charCount < (MAX_TOKEN_STRING_LENGTH-1))
+     {
+        token_string[charCount] = *(token_ptr);
+        token_string[charCount+1] = '\0';
+        charCount++;
+        token_ptr++;
+     }
+     theToken->token_code = STRING;
+     theToken->literal_value = token_string;
+     theToken->literal_type = STRING_LIT;
+     theToken->nextToken = NULL;
+     token_ptr++;
+
+     return token_ptr;
 }
 
 static char* get_special(Token* theToken, char token_string[MAX_TOKEN_STRING_LENGTH],char *token_ptr)
@@ -281,6 +347,110 @@ static char* get_special(Token* theToken, char token_string[MAX_TOKEN_STRING_LEN
      Write some code to Extract the special token.  Most are single-character
      some are double-character.  Set the token appropriately.
      */
+     /*switch(*token_ptr)
+     {
+     case 94:
+        theToken->literal_value = "^";
+        theToken->token_code = UPARROW;
+        break;
+     case 42:
+        theToken->literal_value = "*";
+        theToken->token_code = STAR;
+        break;
+     case 40:
+        theToken->literal_value = "(";
+        theToken->token_code = LPAREN;
+        break;
+     case 41:
+        theToken->literal_value = ")";
+        theToken->token_code = RPAREN;
+        break;
+     case 45:
+        theToken->literal_value = "-";
+        theToken->token_code = MINUS;
+        break;
+     case 43:
+        theToken->literal_value = "+";
+        theToken->token_code = PLUS;
+        break;
+     case 61:
+        theToken->literal_value = "=";
+        theToken->token_code = EQUAL;
+        break;
+     case 91:
+        theToken->literal_value = "[";
+        theToken->token_code = LBRACKET;
+        break;
+     case 93:
+        theToken->literal_value = "]";
+        theToken->token_code = RBRACKET;
+        break;
+     case 58:
+        if(*(token_ptr+1) == '=')
+        {
+            theToken->literal_value = ":=";
+            theToken->token_code = COLONEQUAL;
+            token_ptr++;
+        }else
+        {
+            theToken->literal_value = ":";
+            theToken->token_code = COLON;
+        }
+        break;
+     case 59:
+        theToken->literal_value = ";";
+        theToken->token_code = SEMICOLON;
+        break;
+     case 60:
+        if(*(token_ptr+1) == '=')
+        {
+            theToken->literal_value = "<=";
+            theToken->token_code = LE;
+            token_ptr++;
+        }else if(*(token_ptr+1) == '>')
+        {
+            theToken->literal_value = "<>";
+            theToken->token_code = NE;
+            token_ptr++;
+        }else
+        {
+            theToken->literal_value = "<";
+            theToken->token_code = LT;
+        }
+        break;
+     case 62:
+        if(*(token_ptr+1) == '=')
+        {
+            theToken->literal_value = ">=";
+            theToken->token_code = GE;
+            token_ptr++;
+        }else
+        {
+            theToken->literal_value = ">";
+            theToken->token_code = GT;
+        }
+        break;
+     default:
+        theToken->literal_value = ".";
+        theToken->token_code = PERIOD;
+        break;
+     }*/
+     int x;
+     for(x = 4; x < 20;x++)
+     {
+         if( *(SYMBOL_STRINGS1[x]) == *(token_ptr))
+         {
+             theToken->literal_value = SYMBOL_STRINGS1[x];
+             theToken->nextToken = NULL;
+             theToken->token_code = x;
+             token_ptr++;
+             return token_ptr;
+         }
+     }
+     theToken->nextToken = NULL;
+     token_ptr++;
+
+     return token_ptr;
 }
 
 static char* downshift_word(char wordToLower[])
@@ -301,10 +471,33 @@ static char* downshift_word(char wordToLower[])
      return wordToLower;
 }
 
-static BOOLEAN is_reserved_word(char* wordToCheck)
+static BOOLEAN is_reserved_word(Token *theToken)
 {
     /*
      Examine the reserved word table and determine if the function input is a reserved word.
      */
-    return FALSE;
+     char wordToCheck[MAX_TOKEN_STRING_LENGTH];
+     strcpy(wordToCheck,theToken->literal_value);
+     int x = 0;
+     int count = 0;
+     while(wordToCheck[x] != '\0')
+     {
+         count++;
+         x++;
+     }
+     if(count > 1 && count < 10)
+     {
+         int y = 0;
+         while(rw_table[count-2][y].string != NULL)
+         {
+             if(strcmp(rw_table[count-2][y].string,wordToCheck) == 0)
+             {
+                 theToken->nextToken = NULL;
+                 theToken->token_code = rw_table[count-2][y].token_code;
+                 return (TRUE);
+             }
+             y++;
+         }
+     }
+    return (FALSE);
 }
