@@ -62,6 +62,7 @@ typedef struct
 {
     //Missing code goes here
     LiteralType literal_type;
+    char* literal_value;
     TokenCode token_code;
     struct Token *nextToken;
 }
